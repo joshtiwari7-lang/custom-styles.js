@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rexroth Assistant</title>
+  <style>
+    :root {
+      --primary-color: #002B65;
+      --bg-color: #F2F4F7;
+      --text-dark: #101828;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: #f7f9fc;
+      margin: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+
+    .chat-card {
+      width: 400px;
+      height: 600px;
+      background: #ffffff;
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .chat-header {
+      background-color: var(--primary-color);
+      color: #ffffff;
+      padding: 16px;
+      font-weight: 600;
+      font-size: 1.1rem;
+    }
+
+    .chat-body {
+      flex: 1;
+      padding: 16px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .message {
+      max-width: 80%;
+      padding: 10px 14px;
+      border-radius: 12px;
+      font-size: 0.95rem;
+      line-height: 1.4;
+    }
+
+    .message.bot {
+      background-color: var(--bg-color);
+      color: var(--text-dark);
+      align-self: flex-start;
+      border-bottom-left-radius: 2px;
+    }
+
+    .message.user {
+      background-color: var(--primary-color);
+      color: #ffffff;
+      align-self: flex-end;
+      border-bottom-right-radius: 2px;
+    }
+
+    .chat-footer {
+      display: flex;
+      padding: 12px;
+      border-top: 1px solid #e4e7ec;
+      background: #ffffff;
+    }
+
+    .chat-footer input {
+      flex: 1;
+      border: 1px solid #d0d5dd;
+      border-radius: 8px;
+      padding: 10px 12px;
+      outline: none;
+      font-size: 0.95rem;
+    }
+
+    .chat-footer button {
+      background-color: var(--primary-color);
+      color: #ffffff;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 16px;
+      margin-left: 8px;
+      cursor: pointer;
+      font-weight: 500;
+    }
+
+    .chat-footer button:hover {
+      opacity: 0.9;
+    }
+  </style>
+</head>
+<body>
+
+<div class="chat-card">
+  <div class="chat-header">Rexroth Assistant</div>
+  <div class="chat-body" id="chatBody">
+    <div class="message bot">Hello! How can I help you today?</div>
+  </div>
+  <div class="chat-footer">
+    <input type="text" id="userInput" placeholder="Type your message..." onkeypress="handleKeyPress(event)" />
+    <button onclick="sendMessage()">Send</button>
+  </div>
+</div>
+
+<script>
+  const ENDPOINT_URL = "https://endpoint.chatbot-suite.bosch.tech/2e81dfabd744c12cf5126f23e1af58be9f33e358745098c2b711e121dbe8c0e2";
+
+  // Use persistent IDs stored in localStorage so conversation history stays intact
+  const userId = localStorage.getItem("chat_userId") || "user-" + Math.random().toString(36).substring(2, 9);
+  const sessionId = localStorage.getItem("chat_sessionId") || "session-" + Math.random().toString(36).substring(2, 9);
+  localStorage.setItem("chat_userId", userId);
+  localStorage.setItem("chat_sessionId", sessionId);
+
+  function handleKeyPress(e) {
+    if (e.key === "Enter") sendMessage();
+  }
+
+  async function sendMessage() {
+    const input = document.getElementById("userInput");
+    const text = input.value.trim();
+    if (!text) return;
+
+    appendMessage(text, "user");
+    input.value = "";
+
+    try {
+      const response = await fetch(ENDPOINT_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json"
+        },
+        body: JSON.stringify({
+          userId: userId,
+          sessionId: sessionId,
+          text: text
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log("Response data:", data);
+
+      // Handle Cognigy response structure
+      let hasReplied = false;
+      if (Array.isArray(data)) {
+        data.forEach(item => {
+          if (item.text) {
+            appendMessage(item.text, "bot");
+            hasReplied = true;
+          }
+        });
+      } else if (data && data.text) {
+        appendMessage(data.text, "bot");
+        hasReplied = true;
+      }
+
+      if (!hasReplied) {
+        appendMessage("No response text returned from endpoint.", "bot");
+      }
+
+    } catch (error) {
+      console.error("Fetch error:", error);
+      appendMessage("Error communicating with assistant. Check console for details.", "bot");
+    }
+  }
+
+  function appendMessage(text, sender) {
+    const chatBody = document.getElementById("chatBody");
+    const msgDiv = document.createElement("div");
+    msgDiv.className = `message ${sender}`;
+    msgDiv.innerText = text;
+    chatBody.appendChild(msgDiv);
+    chatBody.scrollTop = chatBody.scrollHeight;
+  }
+</script>
+
+</body>
+</html>
